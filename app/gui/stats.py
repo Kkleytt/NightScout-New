@@ -1,28 +1,30 @@
 import matplotlib.pyplot as plt
 import numpy as np
-import json
+import commentjson as json
 import os
 from database.database import send_request_db
 
 
 # Функция чтения конфига в нужной директории
 def read_config():
+    """
+    Функция для считывания данных JSON с файла настроек с поддержкой комментариев
+    :return: Словарь с конфигурационными данными
+    """
+
+    work_dir = os.getcwd()  # Текущая рабочая директория
+    module = "gui"  # Имя поддиректории с модулем
+    filename = "config.json"  # Имя конфига
+
+    # Формируем абсолютный путь к config.json внутри модуля
+    absolute_path = os.path.abspath(os.path.join(work_dir, module, filename))
+
     try:
-        work_dir = os.getcwd()  # Текущая рабочая директория
-        module = "gui"  # Имя поддиректории с модулем
-        filename = "config.json"  # Имя конфига
-
-        # Формируем абсолютный путь к config.json внутри модуля
-        absolute_path = os.path.abspath(os.path.join(work_dir, module, filename))
-
-        # Чтение данных и преобразование в JSON-объект
-        with open(absolute_path, 'r') as f:
-            data = json.load(f)
-
-        return data
+        with open(absolute_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
     except Exception as e:
-        print(f'Ошибка чтения конфигурационного файла - {e}')
-        return None
+        print(f'Ошибка чтения конфигурационного файла: {e}')
+        exit(101)
 
 
 # Функция получения данных сахара за период
@@ -180,11 +182,4 @@ def start(connection, cursor):
         theme=data['graphs']['themes'][data['graphs']['select_theme']],
         width=data['graphs']['width'],
         height=data['graphs']['height']
-    )
-
-
-if __name__ == "__main__":
-    start(
-        connection=None,
-        cursor=None
     )

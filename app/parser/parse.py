@@ -1,5 +1,5 @@
 import requests
-import json
+import commentjson as json
 import os
 import datetime
 from concurrent.futures import ThreadPoolExecutor
