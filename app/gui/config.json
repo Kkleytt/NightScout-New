@@ -1,0 +1,52 @@
+{
+  "graphs": {
+    "select_theme": "light", // Выбранная тема для отрисовки графиков
+    "width": 30, // Ширина графика
+    "height": 6, // Высота графика
+    "themes": {
+      "light": { // Настройки светлой темы
+        "color1": "white",
+        "color2": "black",
+        "color3": "gray"
+      },
+      "dark": { // Настройки темной темы
+        "color1": "black",
+        "color2": "white",
+        "color3": "gray"
+      }
+    }
+  },
+  "cli": {
+    "show": {
+      "date": true, // Выводить дату записи
+      "id": true, // Выводить идентификатор записи
+      "sugar": true, // Выводить данные сахара
+      "tendency": true, // Выводить данные тенденции
+      "insulin": true, // Выводить данные инсулина и еды
+      "battery": true, // Выводить данные заряда устройств
+      "icons": {
+        "sugar": true, // Выводить иконку уровня сахара
+        "tendency": true, // Выводить иконку тенденции
+        "battery": true // Выводить иконку уровня заряда
+      }
+    },
+    "tendency": { // Иконки для вывода тенденции
+      "Flat": "\uFE0F",
+      "FortyFiveUp": "\uFE0F",
+      "SingleUp": "\uFE0F",
+      "DoubleUp": "\uFE0F\uFE0F",
+      "FortyFiveDown": "\uFE0F",
+      "SingleDown": "\uFE0F",
+      "DoubleDown": "\uFE0F\uFE0F",
+      "NOT COMPUTABLE": "\uD83D\uDD00",
+      "": "\uD83D\uDD00"
+    },
+    "sugar_levels": { // Иконки для вывода уровня сахара
+      "0-3.9": "\uD83D\uDFE5",
+      "4.0-4.9": "\uD83D\uDFE8",
+      "5.0-7.4": "\uD83D\uDFE9",
+      "7.4-10.0": "\uD83D\uDFE8",
+      "10.1-40.0": "\uD83D\uDFE5"
+    }
+  }
+}

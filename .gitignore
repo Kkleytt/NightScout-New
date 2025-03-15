@@ -1,0 +1,11 @@
+.idea/
+app/venv/
+app/.idea/
+app/__pycache__/
+app/gui/__pycache__/
+app/move/__pycache__/
+app/#database.db
+app/database/__pycache__/
+app/database/config.json
+app/parser/__pycache__/
+app/parser/config.json
