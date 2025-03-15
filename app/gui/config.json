@@ -17,6 +17,7 @@
     }
   },
   "cli": {
+    "view_mode": 2, // Выбор режима компактности вывода от 0 (стандартный) до 2 (маленький)
     "show": {
       "date": true, // Выводить дату записи
       "id": true, // Выводить идентификатор записи
@@ -24,22 +25,18 @@
       "tendency": true, // Выводить данные тенденции
       "insulin": true, // Выводить данные инсулина и еды
       "battery": true, // Выводить данные заряда устройств
-      "icons": {
-        "sugar": true, // Выводить иконку уровня сахара
-        "tendency": true, // Выводить иконку тенденции
-        "battery": true // Выводить иконку уровня заряда
-      }
+      "icons": true // Выводить иконки
     },
     "tendency": { // Иконки для вывода тенденции
-      "Flat": "\uFE0F",
-      "FortyFiveUp": "\uFE0F",
-      "SingleUp": "\uFE0F",
-      "DoubleUp": "\uFE0F\uFE0F",
-      "FortyFiveDown": "\uFE0F",
-      "SingleDown": "\uFE0F",
-      "DoubleDown": "\uFE0F\uFE0F",
-      "NOT COMPUTABLE": "\uD83D\uDD00",
-      "": "\uD83D\uDD00"
+      "Flat": "➡\uFE0F",
+      "FortyFiveUp": "↗\uFE0F",
+      "SingleUp": "⬆\uFE0F",
+      "DoubleUp": "⬆\uFE0F⬆\uFE0F",
+      "FortyFiveDown": "↘\uFE0F",
+      "SingleDown": "⬇\uFE0F",
+      "DoubleDown": "⬇\uFE0F⬇\uFE0F",
+      "NOT COMPUTABLE": "❔",
+      "": "❔"
     },
     "sugar_levels": { // Иконки для вывода уровня сахара
       "0-3.9": "\uD83D\uDFE5",

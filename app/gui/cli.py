@@ -110,11 +110,11 @@ def print_data(connection, cursor, data):
         return
 
     # Строка с уровнем глюкозы в крови (Показатель, цвет, тенденция, изменения)
-    sugar_icon = f"{check_icon_sugar(round(float(data_sugar[2]), 1))} " if data['cli']['show']['icons']['sugar'] else ""
+    sugar_icon = f"{check_icon_sugar(round(float(data_sugar[2]), 1))}" if data['cli']['show']['icons'] else ""
     sugar = f"{data_sugar[2]} " if data['cli']['show']['sugar'] else ""
     tendency = f"{data_sugar[4]} " if data['cli']['show']['tendency'] else ""
     tendency_icon = ""
-    if data_sugar[3] == 'NOT COMPUTABLE' or data_sugar[3] == '' and data['cli']['show']['icons']['tendency']:
+    if data_sugar[3] == 'NOT COMPUTABLE' or data_sugar[3] == '' and data['cli']['show']['icons']:
         tendency_int = abs(float(data_sugar[4]))
         if 0.3 >= tendency_int >= -0.3:
             tendency_icon = "➡️"
@@ -131,17 +131,20 @@ def print_data(connection, cursor, data):
         elif tendency_int < -0.9:
             tendency_icon = "⬇️"
     else:
-        tendency_icon = f"{data['cli']['tendency'][data_sugar[3]]} " if data['cli']['show']['icons']['tendency'] else ""
+        tendency_icon = f"{data['cli']['tendency'][data_sugar[3]]} " if data['cli']['show']['icons'] else ""
 
-    # Строка с состоянием устройств (Заряд, объем, названия)
-    battery_icon_pump = f"{check_icon_battery(data_device[4])} " if data['cli']['show']['icons']['battery'] else ""
-    battery_icon_iaps = f"{check_icon_battery(data_device[2])} " if data['cli']['show']['icons']['battery'] else ""
-    battery_icon_transmitter = f"{check_icon_battery(data_device[3])} " if data['cli']['show']['icons']['battery'] else ""
-    cartridge_pump_icon = f"{check_icon_battery(data_device[5] / 3)}" if data['cli']['show']['icons']['battery'] else ""
-    battery_pump = f"{data_device[4]}% " if data['cli']['show']['battery'] else ""
-    battery_iaps = f"{data_device[2]}% " if data['cli']['show']['battery'] else ""
-    battery_transmitter = f"{data_device[3]}% " if data['cli']['show']['battery'] else ""
-    cartridge_pump = f"{data_device[5]}U " if data['cli']['show']['battery'] else ""
+    # Генерация иконок
+    battery_icon_pump = f"{check_icon_battery(data_device[4])}" if data['cli']['show']['icons'] else ""
+    battery_icon_iaps = f"{check_icon_battery(data_device[2])}" if data['cli']['show']['icons'] else ""
+    battery_icon_transmitter = f"{check_icon_battery(data_device[3])}" if data['cli']['show']['icons'] else ""
+    cartridge_pump_icon = f"{check_icon_battery(data_device[5] / 3)}" if data['cli']['show']['icons'] else ""
+    cartridge_icon = "🍶" if data['cli']['show']['icons'] else ""
+
+    # Генерация состояния устройств
+    battery_pump = f"{data_device[4]}%" if data['cli']['show']['battery'] else ""
+    battery_iaps = f"{data_device[2]}%" if data['cli']['show']['battery'] else ""
+    battery_transmitter = f"{data_device[3]}%" if data['cli']['show']['battery'] else ""
+    cartridge_pump = f"{data_device[5]}U" if data['cli']['show']['battery'] else ""
     phone_name = f"{data_device[10]}"
     transmitter_name = f"{data_device[11]}"
     pump_name = f"{data_device[9]}"
@@ -164,21 +167,62 @@ def print_data(connection, cursor, data):
     # Создание автоматической таблицы, добавление данных, вывод таблицы в консоль
     table = PrettyTable()
 
-    row_del = ["-------------------------", "-------------------------", "-------------------------"]
-    row_0 = [data_device[1], f"{data_insulin[1]}.", date]
-    row_1 = [f"{phone_name} {battery_icon_iaps}{battery_iaps}", base_insulin, f"{sugar_icon}{sugar}"]
-    row_2 = [f"{transmitter_name} {battery_icon_transmitter}{battery_transmitter}", injection_insulin, f"{tendency_icon}-{data_sugar[3]}"]
-    row_3 = [f"{pump_name} {battery_icon_pump}{battery_pump}", carbs_insulin, tendency]
-    row_4 = [f"🍶 {cartridge_pump}{cartridge_pump_icon} {int(int(data_device[5]) / 3)}%", duration_insulin, id_record]
+    # Проверка на вывод компактной информации
+    if data['cli']['view_mode'] == 0:
+        row_del = ["----------------------------", "----------------------------", "----------------------------"]
+        row_0 = [data_device[1], f"{data_insulin[1]}.", date]
+        row_1 = [f"{phone_name} {battery_icon_iaps} {battery_iaps}", base_insulin, f"{sugar_icon} {sugar}"]
+        row_2 = [f"{transmitter_name} {battery_icon_transmitter} {battery_transmitter}", injection_insulin,
+                 f"{tendency_icon}- {data_sugar[3]}"]
+        row_3 = [f"{pump_name} {battery_icon_pump} {battery_pump}", carbs_insulin, tendency]
+        row_4 = [f"{cartridge_icon}{cartridge_pump} {cartridge_pump_icon} {int(int(data_device[5]) / 3)}%",
+                 duration_insulin, id_record]
 
-    table.field_names = row_0
-    table.add_row(row_1)
-    table.add_row(row_del)
-    table.add_row(row_2)
-    table.add_row(row_del)
-    table.add_row(row_3)
-    table.add_row(row_del)
-    table.add_row(row_4)
+        table.field_names = row_0
+        table.add_row(row_1)
+        table.add_row(row_del)
+        table.add_row(row_2)
+        table.add_row(row_del)
+        table.add_row(row_3)
+        table.add_row(row_del)
+        table.add_row(row_4)
+
+    elif data['cli']['view_mode'] == 1:
+        row_del = ["--------------------", "--------------------"]
+        row_0 = ['Имя', 'Индикатор']
+        row_1 = ['Уровень сахара', f"{sugar_icon} {sugar}"]
+        row_2 = ['Кол-во инсулина', f"{cartridge_pump_icon} {int(int(data_device[5]) / 3)}%"]
+        row_3 = ['Заряд помпы', f"{battery_icon_pump} {battery_pump}"]
+        row_4 = ['Заряд трансмиттера', f"{battery_icon_transmitter} {battery_transmitter}"]
+        row_5 = ['Заряд телефона', f"{battery_icon_iaps} {battery_iaps}"]
+        row_6 = ['Дата обновления', f"{date}"]
+
+        table.field_names = row_0
+        table.add_row(row_1)
+        table.add_row(row_del)
+        table.add_row(row_2)
+        table.add_row(row_del)
+        table.add_row(row_3)
+        table.add_row(row_del)
+        table.add_row(row_4)
+        table.add_row(row_del)
+        table.add_row(row_5)
+        table.add_row(row_del)
+        table.add_row(row_6)
+
+    elif data['cli']['view_mode'] == 2:
+        row_0 = ['Уровень сахара', 'Кол-во инсулина', 'Заряд батарей', 'Дата обновления данных']
+        row_1 = [
+            f"{sugar_icon} {sugar}",
+            f"{cartridge_pump_icon} {int(int(data_device[5]) / 3)}%",
+            f"{battery_icon_pump} {battery_pump}  >  "
+            f"{battery_icon_transmitter} {battery_transmitter}  >  "
+            f"{battery_icon_iaps} {battery_iaps}",
+            f"{date}"
+        ]
+
+        table.field_names = row_0
+        table.add_row(row_1)
 
     print("")
     print(table, "\n")

@@ -49,7 +49,8 @@ def start_loop(connection, cursor, settings):
                  "4) /stats - Вывести график сахаров за последний день\n"\
                  "5) /parse/loop - Запустить цикл получения и сохранения данных\n"\
                  "6) /print/loop - Запустить цикл получения, сохранения и вывода данных\n"\
-                 "7) /help - Вывести данную таблицу"
+                 "7) /info - Вывести данную таблицу\n"\
+                 "8) /exit - Выход из программы"
     print(table_help)
 
     while True:
@@ -106,8 +107,12 @@ def start_loop(connection, cursor, settings):
                     )
                     time.sleep(settings['loop_timeout'])
 
-            case "/help":
+            case "/info":
                 print(table_help)
+
+            case "/exit":
+                print("\n--- Выход из программы")
+                exit(0)
 
             case _:
                 print(f"--- Неверная команда '{user_input}'")
@@ -132,10 +137,11 @@ def start():
     # Добавляем каждый возможный аргумент как отдельный флаг
     group.add_argument('--parse', action='store_true', help='Run parsing mode')
     group.add_argument('--print', action='store_true', help='Run print mode')
-    group.add_argument('--move', action='store_true', help='Run move mode')
+    group.add_argument('--move', action='store_true', help='Run moving database SqLite to MySQL')
     group.add_argument('--stats', action='store_true', help='Run statistics mode')
     group.add_argument('--parseLoop', action='store_true', help='Run parsing loop')
-    group.add_argument('--printLoop', action='store_true', help='Run print loop')
+    group.add_argument('--printLoop', action='store_true', help='Run parsing & print loop')
+    group.add_argument('--info', action='store_true', help='Help table with command palette')
 
     # Обрабатываем поднятые флаги
     args = parser.parse_args()
@@ -183,7 +189,7 @@ def start():
                 cursor=cursor
             )
             time.sleep(settings['loop_timeout'])
-    if args.help:
+    if args.info:
         print("\nСписок аргументов для запуска программы:\n"
               "1) --parse - Спарсить и сохранить данные\n"
               "2) --print - Вывод последней записи в БД\n"
@@ -202,4 +208,8 @@ def start():
 
 
 if __name__ == '__main__':
-    start()
+    try:
+        start()
+    except KeyboardInterrupt:
+        print("\n\n--- Некорректный выход")
+        exit(1)
