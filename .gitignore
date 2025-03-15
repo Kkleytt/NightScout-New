@@ -1,4 +1,5 @@
 .idea/
+README.md
 app/venv/
 app/.idea/
 app/__pycache__/
