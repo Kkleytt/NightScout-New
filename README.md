@@ -16,16 +16,16 @@
     │       └── config.json
     └── server/ --- Серверная часть
         ├── main.py --- Главный файл запуска
-        └── config.json/
-            ├── database/
-            │   ├── database.py --- Модуль работы с Базой данных MySQL
-            │   └── config.json
-            ├── parser/
-            │   ├── parse.py --- Парсер данных с сайта NightScout
-            │   └── config.json
-            └── api/
-                ├── api.py --- Модуль API-сервера для работы с БД
-                └── config.json
+        ├── config.json
+        ├── database/
+        │   ├── database.py --- Модуль работы с Базой данных MySQL
+        │   └── config.json
+        ├── parser/
+        │   ├── parse.py --- Парсер данных с сайта NightScout
+        │   └── config.json
+        ├── api/
+            ├── api.py --- Модуль API-сервера для работы с БД
+            └── config.json
 ```
 
 ### Процесс разработки:
