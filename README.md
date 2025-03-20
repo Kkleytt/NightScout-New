@@ -3,35 +3,30 @@
 Представляет из себя удобную программу для записи большого количества данных о сахарах и вводах инсулина и локальному хранению всех записей для глубокго анализа
 В конечном варианте программа будет иметь локальный сервер оформленный в новом стиле и более дружелюбный для пользователя
 
-
-### Структура Базы Данных:
-- **Sugar**
-    - id **TEXT**
-    - date **TEXT**
-    - sugar **FLOAT**
-    - tendency **TEXT**
-    - difference **TEXT**
-- **Insulin** 
-    - id **TEXT**
-    - date **TEXT**
-    - insulin **FLOAT**
-    - carbs **FLOAT**
-    - duration **TEXT**
-    - type **TEXT**
-- **Device**
-    - id **INT**
-    - date **TEXT**
-    - phone_battery **INT**
-    - transmitter_battery **INT**
-    - pump_battery **INT**
-    - pump_cartridge **INT**
-    - cannula **TEXT**
-    - insulin **TEXT**
-    - sensor **TEXT**
-    - pump_model **TEXT**
-    - phone_model **TEXT**
-    - transmitter_model **TEXT**
-
+### Структура проекта:
+```
+└── main/
+    ├── app/ --- Клиентская часть
+    │   ├── main.py --- Главный файл запуска
+    │   ├── config.json
+    │   ├── background.bat
+    │   └── gui/
+    │       ├── cli.py --- Модуль отображения GUI в CLI режиме
+    │       ├── graphs.py - Модуль генерации графов
+    │       └── config.json
+    └── server/ --- Серверная часть
+        ├── main.py --- Главный файл запуска
+        └── config.json/
+            ├── database/
+            │   ├── database.py --- Модуль работы с Базой данных MySQL
+            │   └── config.json
+            ├── parser/
+            │   ├── parse.py --- Парсер данных с сайта NightScout
+            │   └── config.json
+            └── api/
+                ├── api.py --- Модуль API-сервера для работы с БД
+                └── config.json
+```
 
 ### Процесс разработки:
 - [x] Перенести платформы на MySQL
