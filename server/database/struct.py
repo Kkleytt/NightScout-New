@@ -41,3 +41,20 @@ class DeviceData(BaseModel):
 class CommandData(BaseModel):
     query: str
     params: list
+
+
+# Структура передачи токена клиенту
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+
+# Структура проверки валидации токена
+class TokenData(BaseModel):
+    username: Optional[str] = None
+
+
+# Структура данных пользователя
+class User(BaseModel):
+    username: str
+    password: str

@@ -1,9 +1,6 @@
 from gui import cli
 from gui import graphs
-import commentjson as json  # Библиотека для работы с JSON строками
 import argparse  # Библиотека для работы с аргументами запуска
-import time  # Библиотека для работы с временем
-import os  # Библиотека для работы с файловой структурой
 import threading  # Библиотека для работы с параллельным выполнением
 import logging  # Библиотека для работы с логированием
 
@@ -13,30 +10,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-# Чтение глобальных настроек программы
-def read_config():
-    """
-    Функция для считывания данных JSON с файла настроек с поддержкой комментариев
-    :return: Словарь с конфигурационными данными
-    """
-
-    work_dir = os.getcwd()  # Текущая рабочая директория
-    module = ""  # Имя поддиректории с модулем
-    filename = "config.json"  # Имя конфига
-
-    # Формируем абсолютный путь к config.json внутри модуля
-    absolute_path = os.path.abspath(os.path.join(work_dir, module, filename))
-
-    try:
-        with open(absolute_path, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except Exception as e:
-        print(f'Ошибка чтения конфигурационного файла: {e}')
-        exit(101)
-
-
 # Функция запуска модулей через консоль
-def run_console(settings):
+def run_console():
     table = ("Таблица команд:"
              "/print - Вывод таблицы данных\n"
              "/printLoop - Вывод таблицы данных в цикле\n"
@@ -51,9 +26,7 @@ def run_console(settings):
             case '/print':
                 cli.start()
             case '/printLoop':
-                while True:
-                    cli.start()
-                    time.sleep(settings['loop_timeout'])
+                cli.start_loop()
             case '/graphDay':
                 graphs.start_day(
                     time_start='2025-03-19-00-00',
@@ -80,17 +53,14 @@ def start():
         cli.start()
 
     # Функция запуска службы cli в цикле
-    def run_show_loop(loop_timeout):
+    def run_show_loop():
         """
         Функция запуска парсинга в отдельном потоке в режиме цикла
-        :param loop_timeout: Задержка между циклами
         :return: None
         """
 
         logger.info("Running parsing loop")
-        while True:
-            cli.start()
-            time.sleep(loop_timeout)
+        cli.start_loop()
 
     # Функция запуска графа дня
     def run_graph_mode():
@@ -107,7 +77,7 @@ def start():
     # Функция работы в консольном виде
     def run_console_mode():
         logger.info("Running console mode")
-        run_console(settings=settings)
+        run_console()
 
     # Функция для вывода списка доступных аргументов запуска
     def show_info():
@@ -117,9 +87,6 @@ def start():
               "2) --parseLoop - Бесконечный парсинг\n"
               "3) --info - Вывод списка аргументов\n"
               )
-
-    # Чтение настроек программы
-    settings = read_config()
 
     # Обработка входных команд при запуске
     parser = argparse.ArgumentParser(description="Process commands for Diabetes program")
@@ -142,7 +109,7 @@ def start():
         thread_parse = threading.Thread(target=run_show_mode)
         threads.append(thread_parse)
     if args.printLoop:
-        thread_parse_loop = threading.Thread(target=run_show_loop, args=[settings['loop_timeout']])
+        thread_parse_loop = threading.Thread(target=run_show_loop)
         threads.append(thread_parse_loop)
     if args.graphD:
         thread_api = threading.Thread(target=run_graph_mode)

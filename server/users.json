@@ -1,0 +1,10 @@
+{
+  "Main-Parser": {
+    "username": "Main-Parser",
+    "password": "Parser_Password"
+  },
+  "Main-Client": {
+    "username": "Main-Client",
+    "password": "Client_Password"
+  }
+}

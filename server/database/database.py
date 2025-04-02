@@ -1,77 +1,78 @@
-import commentjson as json  # Библиотека для работы с JSON-строками
-import os  # Библиотека для работы с файловой системой
 import pymysql  # Библиотека для работы с БД (MySQL)
+import time  # Библиотека для работы со временем
 
 
-# Функция чтения конфига в нужной директории
-def read_config():
-    """
-    Функция для считывания данных JSON с файла настроек с поддержкой комментариев
-    :return: Словарь с конфигурационными данными
-    """
+class MySQL:
+    def __init__(self, host, port, user, password, database, retry_max, retry_delay, timeout, read_timeout, write_timeout):
+        """
+        Класс Базы Данных MySQL
+        :param host: Ip-адрес для подключения к MySQL
+        :param port: Порт для подключения к MySQL
+        :param user: Логин пользователя для авторизации
+        :param password: Пароль пользователя для авторизации
+        :param database: Имя Базы Данных
+        :param retry_max: Максимальное кол-во попыток подключения
+        :param retry_delay: Ожидания между попытками подключения
+        """
 
-    work_dir = os.getcwd()  # Текущая рабочая директория
-    module = "database"  # Имя поддиректории с модулем
-    filename = "config.json"  # Имя конфига
+        self.host = host
+        self.port = port
+        self.user = user
+        self.password = password
+        self.database = database
+        self.max_retries = retry_max
+        self.retry_delay = retry_delay
+        self.timeout = timeout
+        self.read_timeout = read_timeout
+        self.write_timeout = write_timeout
+        self.connection = None
+        self.connect()
 
-    # Формируем абсолютный путь к config.json внутри модуля
-    absolute_path = os.path.abspath(os.path.join(work_dir, module, filename))
+    def connect(self):
+        """Устанавливает подключение к базе данных с обработкой ошибок"""
+        retries = 0
+        while retries < self.max_retries:
+            try:
+                self.connection = pymysql.connect(
+                    host=self.host,
+                    port=self.port,
+                    user=self.user,
+                    password=self.password,
+                    database=self.database,
+                    autocommit=True,  # Автоматически фиксирует изменения
+                    connect_timeout=self.timeout,
+                    read_timeout=self.read_timeout,
+                    write_timeout=self.write_timeout
+                )
+                print("✅ Подключение к БД установлено")
+                return
+            except pymysql.err.OperationalError as e:
+                print(f"⚠️ Ошибка подключения к БД: {e}, повтор через {self.retry_delay} сек...")
+                time.sleep(self.retry_delay)
+                retries += 1
+        raise Exception("❌ Не удалось подключиться к БД после нескольких попыток")
 
-    try:
-        with open(absolute_path, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except Exception as e:
-        print(f'Ошибка чтения конфигурационного файла: {e}')
-        exit(101)
+    def reconnect_if_needed(self):
+        """Проверяет, активно ли соединение, и подключается при необходимости"""
+        try:
+            with self.connection.cursor() as cursor:
+                cursor.execute("SELECT 1")
+        except (pymysql.err.OperationalError, pymysql.err.InterfaceError):
+            print("🔄 Соединение с БД потеряно, переподключение...")
+            self.connect()
 
-
-# Функция подключения к MySQL
-def connect_mysql():
-    """
-    Функция подключения к БД (MySQL)
-    :return: MySQL-connection
-    """
-
-    # Чтение настроек подключения к MySQL
-    data = read_config()
-
-    # Попытка подключения
-    try:
-        con = pymysql.connect(
-            host=data['mysql']['host'],
-            port=data['mysql']['port'],
-            user=data['mysql']['user'],
-            password=data['mysql']['password'],
-            database=data['mysql']['database'],
-            connect_timeout=data['mysql']['timeout'],
-            read_timeout=data['mysql']['read_timeout'],
-            write_timeout=data['mysql']['write_timeout'],
-        )
-        cur = con.cursor()
-        return con, cur
-
-    except Exception as e:
-        print(f"Неудачное подключение к БД - {e}")
-        return None, None
-
-
-# Функция отправки запросов в БД
-def send_request_db(connection, cursor, query, data=None):
-    """
-    Функция отправки запросов в БД
-    :param connection: Объект соединения БД
-    :param cursor: Объект курсора БД
-    :param query: Запрос дял выполнения
-    :param data: Данные для запроса
-    :return: Данные из БД
-    """
-
-    # Попытка отправить запрос и сохранить изменения
-    try:
-        cursor.execute(query, data)
-        connection.commit()
-        return cursor.fetchall()
-    except Exception as e:
-        print(f"Ошибка отправки запроса MySQL - {e}")
-        connection.rollback()
-        return None
+    def execute_query(self, query, params=None):
+        """Выполняет SQL-запрос с автоматическим подключением при обрыве связи
+        :param query: SQL запрос
+        :param params: Параметры для запроса
+        :return : Данные от БД
+        """
+        self.reconnect_if_needed()
+        try:
+            with self.connection.cursor() as cursor:
+                cursor.execute(query, params)
+                return cursor.fetchall()
+        except pymysql.err.OperationalError:
+            print("⚠️ Ошибка запроса, попытка переподключения...")
+            self.connect()
+            return self.execute_query(query, params)  # Повторный запрос после переподключения
