@@ -9,9 +9,15 @@ from typing import Optional  # Библиотека для поддержки о
 import json as js  # Библиотека для работы с JSON строками
 import os  # Библиотека для работы с операционной системой
 
+# Библиотеки для работы Ограничителя запросов (прерывает общение с пользователем при > кол-во запросов)
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+
 from database import database  # Модуль для взаимодействия с БД
 from database import struct  # Модуль с описанием структуры таблицы в БД
-import config as sc  # Настройки программы
+import config as cfg  # Настройки программы
 
 
 # Класс для управления безопасностью
@@ -154,7 +160,7 @@ def verification_client(token, secret_key, algorithm, method="GET"):
     """
 
     # Проверка на включенный метод
-    if not eval(f"sc.API.Methods.{method.lower()}"):
+    if not eval(f"cfg.API.Methods.{method.lower()}"):
         return {"Result": False, "Detail": f"Method {method} Not Allowed", "Code": 401}
 
     # Проверка JWT-токена
@@ -171,28 +177,64 @@ def verification_client(token, secret_key, algorithm, method="GET"):
 
 # Функция создания FastAPI-приложения
 def create_app():
+    def add_limiter(fastapi, redis_db=False):
+        # Поверка на подключение к Redis
+        if redis_db:
+            import redis.asyncio as redis
+
+            # Настройка подключения
+            redis_client = redis.Redis(
+                host=cfg.API.Limiter.Redis.host,
+                port=cfg.API.Limiter.Redis.port,
+                db=cfg.API.Limiter.Redis.db,
+                encoding="utf-8",
+                decode_responses=True
+            )
+            redis_url = (f"redis://"
+                         f"{redis_client.connection_pool.connection_kwargs['host']}:"
+                         f"{redis_client.connection_pool.connection_kwargs['port']}/"
+                         f"{redis_client.connection_pool.connection_kwargs['db']}"
+                         )
+        else:
+            redis_url = None
+
+        # Инициализация Limiter
+        limiter = Limiter(
+            key_func=get_remote_address,
+            storage_uri=redis_url,
+            default_limits=[f"{cfg.API.Limiter.query_per_minute_block} per minute"]
+        )
+
+        # Привязка Лимитера к API-серверу
+        fastapi.state.limiter = limiter
+        fastapi.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+        fastapi.add_middleware(SlowAPIMiddleware)
+
     # Создание API приложения
     app = FastAPI(title="Sugar Tracking API", version="1.0.0")
 
+    # Привязка ограничителя кол-во запросов
+    add_limiter(app, redis_db=False)
+
     # Подключение к БД (MySQL)
     db = database.MySQL(
-        host=sc.DataBase.host,
-        port=sc.DataBase.port,
-        user=eval(f"sc.DataBase.{sc.DataBase.sel_user}.login"),
-        password=eval(f"sc.DataBase.{sc.DataBase.sel_user}.password"),
-        database=sc.DataBase.database,
-        retry_max=sc.DataBase.retry_max,
-        retry_delay=sc.DataBase.retry_delay,
-        timeout=sc.DataBase.timeout,
-        read_timeout=sc.DataBase.read_timeout,
-        write_timeout=sc.DataBase.write_timeout
+        host=cfg.DataBase.host,
+        port=cfg.DataBase.port,
+        user=eval(f"cfg.DataBase.{cfg.DataBase.sel_user}.login"),
+        password=eval(f"cfg.DataBase.{cfg.DataBase.sel_user}.password"),
+        database=cfg.DataBase.database,
+        retry_max=cfg.DataBase.retry_max,
+        retry_delay=cfg.DataBase.retry_delay,
+        timeout=cfg.DataBase.timeout,
+        read_timeout=cfg.DataBase.read_timeout,
+        write_timeout=cfg.DataBase.write_timeout
     )
 
     # Инициализация менеджера аутентификации
     auth = JwtManager(
-        secret_key=sc.API.token,
+        secret_key=cfg.API.token,
         algorithm="HS256",
-        token_life=sc.API.life_token,
+        token_life=cfg.API.life_token,
         users_file_path=os.path.abspath(os.path.join(os.getcwd(), "users.json"))
     )
 
@@ -218,10 +260,7 @@ def create_app():
                 method="GET"
             )
             if not response['Result']:
-                raise HTTPException(
-                    status_code=response['Code'],
-                    detail=response['Detail']
-                )
+                raise HTTPException(status_code=response['Code'], detail=response['Detail'])
             return response
         except ValueError as e:
             raise HTTPException(status_code=401, detail=str(e))
@@ -237,10 +276,7 @@ def create_app():
             method="PUT"
         )
         if not response['Result']:
-            raise HTTPException(
-                status_code=response['Code'],
-                detail=response['Detail']
-            )
+            raise HTTPException(status_code=response['Code'], detail=response['Detail'])
 
         # Генерация запроса и получение данных
         try:
@@ -263,10 +299,7 @@ def create_app():
             method="PUT"
         )
         if not response['Result']:
-            raise HTTPException(
-                status_code=response['Code'],
-                detail=response['Detail']
-            )
+            raise HTTPException(status_code=response['Code'], detail=response['Detail'])
 
         # Добавление нового пользователя, запись пользователей в файл + отправка результата
         return auth.add_user(
@@ -285,22 +318,19 @@ def create_app():
             method="GET"
         )
         if not response['Result']:
-            raise HTTPException(
-                status_code=response['Code'],
-                detail=response['Error']
-            )
+            raise HTTPException(status_code=response['Code'], detail=response['Error'])
 
         # Генерация запроса и передача данных
         try:
             result = db.execute_query(
                 query="SELECT * FROM Sugar WHERE id = %s",
-                params=str(generate_new_id(record_id))
+                params=(record_id, )
             )
 
             return {
                 "id": result[0][0],
                 "date": result[0][1],
-                "sugar": result[0][2],
+                "value": result[0][2],
                 "tendency": result[0][3],
                 "difference": result[0][4]
             }
@@ -318,10 +348,7 @@ def create_app():
             method="GET"
         )
         if not response['Result']:
-            raise HTTPException(
-                status_code=response['Code'],
-                detail=response['Error']
-            )
+            raise HTTPException(status_code=response['Code'], detail=response['Error'])
 
         # Генерация запроса и передача данных
         try:
@@ -335,7 +362,7 @@ def create_app():
                 json_results[item[0]] = {
                     "id": item[0],
                     "date": item[1],
-                    "sugar": item[2],
+                    "value": item[2],
                     "tendency": item[3],
                     "difference": item[4]
                 }
@@ -355,22 +382,19 @@ def create_app():
             method="GET"
         )
         if not response['Result']:
-            raise HTTPException(
-                status_code=response['Code'],
-                detail=response['Error']
-            )
+            raise HTTPException(status_code=response['Code'], detail=response['Error'])
 
         # Генерация запроса и передача данных
         try:
             result = db.execute_query(
                 query="SELECT * FROM Insulin WHERE id = %s",
-                params=str(generate_new_id(record_id))
+                params=(record_id, )
             )
 
             return {
                 "id": result[0][0],
                 "date": result[0][1],
-                "insulin": result[0][2],
+                "value": result[0][2],
                 "carbs": result[0][3],
                 "duration": result[0][4],
                 "type": result[0][5],
@@ -389,10 +413,7 @@ def create_app():
             method="GET"
         )
         if not response['Result']:
-            raise HTTPException(
-                status_code=response['Code'],
-                detail=response['Error']
-            )
+            raise HTTPException(status_code=response['Code'], detail=response['Error'])
 
         # Генерация запроса и передача данных
         try:
@@ -406,7 +427,7 @@ def create_app():
                 json_results[item[0]] = {
                     "id": item[0],
                     "date": item[1],
-                    "insulin": item[2],
+                    "value": item[2],
                     "carbs": item[3],
                     "duration": item[4],
                     "type": item[5]
@@ -427,10 +448,7 @@ def create_app():
             method="GET"
         )
         if not response['Result']:
-            raise HTTPException(
-                status_code=response['Code'],
-                detail=response['Error']
-            )
+            raise HTTPException(status_code=response['Code'], detail=response['Error'])
 
         # Генерация запроса и передача данных
         try:
@@ -440,7 +458,7 @@ def create_app():
             return {
                 "id": result[0][0],
                 "date": result[0][1],
-                "sugar": result[0][2],
+                "value": result[0][2],
                 "tendency": result[0][3],
                 "difference": result[0][4]
             }
@@ -458,10 +476,7 @@ def create_app():
             method="GET"
         )
         if not response['Result']:
-            raise HTTPException(
-                status_code=response['Code'],
-                detail=response['Error']
-            )
+            raise HTTPException(status_code=response['Code'], detail=response['Error'])
 
         # Генерация запроса и передача данных
         try:
@@ -471,7 +486,7 @@ def create_app():
             return {
                 "id": result[0][0],
                 "date": result[0][1],
-                "insulin": result[0][2],
+                "value": result[0][2],
                 "carbs": result[0][3],
                 "duration": result[0][4],
                 "type": result[0][5],
@@ -490,10 +505,7 @@ def create_app():
             method="GET"
         )
         if not response['Result']:
-            raise HTTPException(
-                status_code=response['Code'],
-                detail=response['Error']
-            )
+            raise HTTPException(status_code=response['Code'], detail=response['Error'])
 
         # Генерация запроса и передача данных
         try:
@@ -507,12 +519,14 @@ def create_app():
                 "transmitter_battery": result[0][3],
                 "pump_battery": result[0][4],
                 "pump_cartridge": result[0][5],
-                "cannula": result[0][6],
-                "insulin": result[0][7],
-                "sensor": result[0][8],
-                "pump_model": result[0][9],
-                "phone_model": result[0][10],
-                "transmitter_model": result[0][11],
+                "insulin_date": result[0][6],
+                "cannula_date": result[0][7],
+                "sensor_date": result[0][8],
+                "pump_name": result[0][9],
+                "phone_name": result[0][10],
+                "transmitter_name": result[0][11],
+                "insulin_name": result[0][12],
+                "sensor_name": result[0][13]
             }
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Data is not valid. Error - {e}")
@@ -528,10 +542,7 @@ def create_app():
             method="PUT"
         )
         if not response['Result']:
-            raise HTTPException(
-                status_code=response['Code'],
-                detail=response['Error']
-            )
+            raise HTTPException(status_code=response['Code'], detail=response['Error'])
 
         # Генерация запроса и добавление данных
         try:
@@ -540,7 +551,7 @@ def create_app():
                 params=[
                     data.id,
                     data.date,
-                    data.sugar,
+                    data.value,
                     data.tendency,
                     data.difference
                 ]
@@ -560,10 +571,7 @@ def create_app():
             method="PUT"
         )
         if not response['Result']:
-            raise HTTPException(
-                status_code=response['Code'],
-                detail=response['Error']
-            )
+            raise HTTPException(status_code=response['Code'], detail=response['Error'])
 
         # Генерация запроса и добавление данных
         try:
@@ -572,7 +580,7 @@ def create_app():
                 params=[
                     data.id,
                     data.date,
-                    data.insulin,
+                    data.value,
                     data.carbs,
                     data.duration,
                     data.type
@@ -593,38 +601,25 @@ def create_app():
             method="PUT"
         )
         if not response['Result']:
-            raise HTTPException(
-                status_code=response['Code'],
-                detail=response['Error']
-            )
+            raise HTTPException(status_code=response['Code'], detail=response['Error'])
 
         # Генерация запроса и добавление данных
         try:
             query = """INSERT INTO Device (
-            id, 
-            date, 
-            phone_battery, 
-            transmitter_battery, 
-            pump_battery, 
-            pump_cartridge, 
-            pump_model, 
-            phone_model, 
-            transmitter_model
+            id, date, 
+            phone_battery, transmitter_battery, pump_battery, pump_cartridge,
+            insulin_date,cannula_date, sensor_date,
+            pump_name, phone_name, transmitter_name, insulin_name, sensor_name
             ) 
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
             db.execute_query(
                 query=query,
                 params=[
-                    data.id,
-                    data.date,
-                    data.phone_battery,
-                    data.transmitter_battery,
-                    data.pump_battery,
-                    data.pump_cartridge,
-                    data.pump_model,
-                    data.phone_model,
-                    data.transmitter_model
+                    data.id, data.date,
+                    data.phone_battery, data.transmitter_battery, data.pump_battery, data.pump_cartridge,
+                    data.insulin_date, data.cannula_date, data.sensor_date,
+                    data.pump_name, data.phone_name, data.transmitter_name, data.insulin_name, data.sensor_name
                 ]
             )
             return {"result": True}
@@ -642,36 +637,25 @@ def create_app():
             method="POST"
         )
         if not response['Result']:
-            raise HTTPException(
-                status_code=response['Code'],
-                detail=response['Error']
-            )
+            raise HTTPException(status_code=response['Code'], detail=response['Error'])
 
         # Генерация запроса и добавление данных
         try:
             query = f"""
             UPDATE Device SET 
             date = %s,
-            phone_battery = %s, 
-            transmitter_battery = %s,
-            pump_battery = %s,
-            pump_cartridge = %s, 
-            pump_model = %s,
-            phone_model = %s,
-            transmitter_model = %s
+            phone_battery = %s, transmitter_battery = %s, pump_battery = %s, pump_cartridge = %s, 
+            insulin_date = %s, cannula_date = %s, sensor_date = %s,
+            pump_name = %s, phone_name = %s, transmitter_name = %s, insulin_name = %s, sensor_name = %s
             WHERE id = 0;
             """
             db.execute_query(
                 query=query,
                 params=[
                     data.date,
-                    data.phone_battery,
-                    data.transmitter_battery,
-                    data.pump_battery,
-                    data.pump_cartridge,
-                    data.pump_model,
-                    data.phone_model,
-                    data.transmitter_model
+                    data.phone_battery, data.transmitter_battery, data.pump_battery, data.pump_cartridge,
+                    data.insulin_date, data.cannula_date, data.sensor_date,
+                    data.pump_name, data.phone_name, data.transmitter_name, data.insulin_name, data.sensor_name
                 ]
             )
             return {"result": True}
@@ -692,7 +676,7 @@ def start():
     app = create_app()
 
     # Запуск API приложения на локальном сервера
-    uvicorn.run(app, host=sc.API.host, port=sc.API.port)
+    uvicorn.run(app, host=cfg.API.host, port=cfg.API.port)
 
 
 if __name__ == '__main__':

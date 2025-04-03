@@ -81,10 +81,12 @@ def start():
     if args.parseLoop:
         thread_parse_loop = threading.Thread(target=run_parsing_loop)
         threads.append(thread_parse_loop)
-    if args.info:
-        show_info()
     if args.reserve:
-        reserve()
+        thread_reserve = threading.Thread(target=reserve)
+        threads.append(thread_reserve)
+    if args.info:
+        thread_info = threading.Thread(target=show_info)
+        threads.append(thread_info)
 
     # Запускаем все потоки
     for thread in threads:

@@ -6,7 +6,7 @@ import datetime
 
 
 # Функция получения токена
-def auth_api():
+def auth_api() -> str | bool:
     """Функция для авторизации пользователя и получения JWT токена"""
     url = f"{cfg.API.url}/token"
     data = {"username": cfg.API.user_login, "password": cfg.API.user_password}

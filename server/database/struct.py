@@ -4,40 +4,42 @@ from typing import Optional
 
 # Структура Таблицы Sugar
 class SugarData(BaseModel):
-    id: str
-    date: str
-    sugar: float
+    id: int
+    date: int
+    value: float
     tendency: str
-    difference: str
+    difference: float
 
 
 # Структура Таблицы Insulin
 class InsulinData(BaseModel):
-    id: str
-    date: str
-    insulin: Optional[float] = None
-    carbs: Optional[float] = None
-    duration: Optional[str] = None
-    type: Optional[str] = None
+    id: int
+    date: int
+    value: float
+    carbs: float
+    duration: int
+    type: str
 
 
 # Структура Таблицы Device
 class DeviceData(BaseModel):
     id: int
-    date: str
+    date: int
     phone_battery: int
     transmitter_battery: int
     pump_battery: int
-    pump_cartridge: float
-    cannula: Optional[str] = None
-    insulin: Optional[str] = None
-    sensor: Optional[str] = None
-    pump_model: str
-    phone_model: str
-    transmitter_model: str
+    pump_cartridge: int
+    insulin_date: int
+    cannula_date: int
+    sensor_date: int
+    pump_name: str
+    phone_name: str
+    transmitter_name: str
+    insulin_name: str
+    sensor_name: str
 
 
-# Структура других запросов
+# Структура кастомных SQL запросов через API
 class CommandData(BaseModel):
     query: str
     params: list

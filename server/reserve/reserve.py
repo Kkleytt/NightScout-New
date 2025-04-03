@@ -4,6 +4,104 @@ from datetime import datetime
 import config as cfg
 
 
+class ReserveDB(MySQL):
+    def reset_tables(self, sugar: bool, insulin: bool, device: bool) -> None:
+        """
+        Функция удаления таблиц (Сброса БД)
+        :param sugar: Сброс таблицы Sugar
+        :param insulin: Сброс таблицы Insulin
+        :param device: Сброс таблицы Device
+        :return: None
+        """
+
+        if sugar:
+            query = "DROP TABLE Sugar"
+            self.execute_query(query=query, params=[])
+        if insulin:
+            query = "DROP TABLE Insulin"
+            self.execute_query(query=query, params=[])
+        if device:
+            query = "DROP TABLE Device"
+            self.execute_query(query=query, params=[])
+
+    def create_table(self, sugar: bool, insulin: bool, device: bool) -> None:
+        """
+        Функция создания новых таблиц в БД
+        :param sugar: Создание таблицы Sugar
+        :param insulin: Создание таблицы Insulin
+        :param device: Создание таблицы Device
+        :return: None
+        """
+
+        if sugar:
+            query = """CREATE TABLE Sugar (
+            id INT,
+            date INT,
+            value FLOAT,
+            tendency TEXT,
+            difference FLOAT
+            )"""
+            self.execute_query(query=query, params=[])
+        if insulin:
+            query = """CREATE TABLE Insulin (
+            id INT,
+            date INT,
+            value FLOAT,
+            carbs INT,
+            duration INT,
+            type TEXT
+            )"""
+            self.execute_query(query=query, params=[])
+        if device:
+            query = """CREATE TABLE Device (
+            id INT,
+            date INT,
+            phone_battery INT,
+            transmitter_battery INT,
+            pump_battery INT,
+            pump_cartridge INT,
+            insulin_date INT,
+            cannula_date INT,
+            sensor_date INT,
+            pump_name TEXT,
+            phone_name TEXT,
+            transmitter_name TEXT,
+            insulin_name TEXT,
+            sensor_name TEXT
+            )"""
+            self.execute_query(query=query, params=[])
+
+    def add_sugar(self, data: list) -> None:
+        """
+        Функция записи данных сахаров
+        :param data: Список данных новой строки
+        :return: None
+        """
+
+        query = f"INSERT INTO {self.database}.Sugar VALUES (%s, %s, %s, %s, %s)"
+        self.execute_query(query=query, params=data)
+
+    def add_insulin(self, data) -> None:
+        """
+        Функция записи данных инсулина
+        :param data: Список данных новой строки
+        :return: None
+        """
+
+        query = f"INSERT INTO {self.database}.Insulin VALUES (%s, %s, %s, %s, %s, %s)"
+        self.execute_query(query=query, params=data)
+
+    def add_device(self, data) -> None:
+        """
+        Функция записи данных устройств
+        :param data: Список данных новой строки
+        :return: None
+        """
+
+        query = f"INSERT INTO {self.database}.Device VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+        self.execute_query(query=query, params=data)
+
+
 # Класс отвечающий за редактирование данных
 class EditData:
     # Функция конвертации времени в unix формат
@@ -31,6 +129,7 @@ class EditData:
         sugar_data_change_2 - Список с измененными id (строка -> int)
         sugar_data_change_3 - Список с измененными difference (строка -> float)
         sugar_data_change_4 - Список с измененными значениями сахара (mmol/литр -> грамм/литр)
+        sugar_data_change_5 - Список с откорректированными значениями разницы между сахарами
 
         Необходимые изменения в БД:
         id (str -> int)
@@ -38,9 +137,6 @@ class EditData:
         difference (str -> float)
         sugar -> value
         """
-
-        print("Данные сахара:")
-        print(f"\tСтарые - {old_data}")
 
         # Перевод дат в UNIX формат
         sugar_data_change_1 = []
@@ -60,10 +156,14 @@ class EditData:
         # Перевод сахаров в формат грамм/литр
         sugar_data_change_4 = []
         for item in sugar_data_change_3:
-            sugar_data_change_4.append([item[0], item[1], (item[2] * 8), item[3], item[4]])
+            sugar_data_change_4.append([item[0], item[1], int(item[2] * 18), item[3], item[4]])
 
-        print(f"\tНовые данные - {sugar_data_change_4}")
-        return sugar_data_change_4
+        # Перевод разницы между сахарами в формат грамм/литр
+        sugar_data_change_5 = []
+        for item in sugar_data_change_4:
+            sugar_data_change_5.append([item[0], item[1], item[2], item[3], round(item[4] * 18, 0)])
+
+        return sugar_data_change_5
 
     # Функция изменения данных инсулина
     def insulin(self, old_data: list) -> list:
@@ -76,12 +176,8 @@ class EditData:
         Необходимые изменения в БД:
         id (str -> int)
         date (str -> int)
-        carbs (int -> float)
         insulin -> value
         """
-
-        print("Данные инсулина:")
-        print(f"\tСтарые - {old_data}")
 
         # Перевод дат в UNIX формат
         insulin_data_change_1 = []
@@ -97,7 +193,6 @@ class EditData:
                 [self.id_to_int(item[0]), item[1], item[2], item[3], item[4], item[5]]
             )
 
-        print(f"\tНовые - {insulin_data_change_2}")
         return insulin_data_change_2
 
     # Функция изменения данных устройств
@@ -106,6 +201,7 @@ class EditData:
         Список переменных для выравнивания (изменения) данных под новую БД
         device_data - Изначальный список со старой БД
         device_data_change_1 - Список с измененными датами (строка -> unix-формат (часовой пояс - 0))
+        device_data_change_2 - Список с актуальным временем в полях sensor, insulin, cannula
 
         Необходимые изменения в БД:
         (FORMAT) date (str -> int)
@@ -124,9 +220,6 @@ class EditData:
         (ADD) sensor_name (str)
         """
 
-        print("Данные устройств:")
-        print(f"\tСтарые - {old_data}")
-
         # Конвертация даты в UNIX формат
         device_data_change_1 = [
             old_data[0], self.date_to_unix(old_data[1]),  # ID & Date
@@ -135,40 +228,16 @@ class EditData:
             old_data[9], old_data[10], old_data[11]  # Pump_model & Transmitter_model & Phone_model
         ]
 
-        # Добавление пустых данных в список
+        # Добавление новых данных в список
         """
-        Структура старого списка:
-        [0] - Id, 
-        [1] - Date, 
-        [2] - Phone_battery,
-        [3] - Transmitter_battery, 
-        [4] - Pump_battery, 
-        [5] - Pump_cartridge,
-        [6] - Cannula, 
-        [7] - Sensor, 
-        [8] - Insulin,
-        [9] - Pump_model,  
-        [10] - Phone_model,
-        [11] - Transmitter_model
-
         Структура нового списка:
-        [0] - id (INT)
-        [1] - date (INT)
-
-        [2] - phone_battery (INT)
-        [3] - transmitter_battery (INT) 
-        [4] - pump_battery (INT)
-        [5] - pump_cartridge (INT)
-
-        [6] - cannula_date (INT)
-        [7] - sensor_date (INT)
-        [8] - insulin_date (INT)
-
-        [9] - pump_name (STR)
-        [10] - phone_name (STR)
-        [11] - transmitter_name (STR)
-        [12] - insulin_name (STR)
-        [13] - sensor_name (STR)
+        [0] - id (INT)                          [7] - sensor_date (INT)
+        [1] - date (INT)                        [8] - insulin_date (INT)
+        [2] - phone_battery (INT)               [9] - pump_name (STR)
+        [3] - transmitter_battery (INT)         [10]- phone_name (STR)
+        [4] - pump_battery (INT)                [11]- transmitter_name (STR)
+        [5] - pump_cartridge (INT)              [12]- insulin_name (STR)
+        [6] - cannula_date (INT)                [13]- sensor_name (STR)        
         """
         device_data_change_2 = [
             device_data_change_1[0],
@@ -179,9 +248,9 @@ class EditData:
             device_data_change_1[4],
             device_data_change_1[5],
 
-            device_data_change_1[6],
-            device_data_change_1[7],
-            device_data_change_1[8],
+            int(datetime.now().timestamp()),
+            int(datetime.now().timestamp()),
+            int(datetime.now().timestamp()),
 
             device_data_change_1[9],
             device_data_change_1[10],
@@ -190,129 +259,220 @@ class EditData:
             "FreeStyle Libre 1"
         ]
 
-        print(f"\tНовые - {device_data_change_2}")
         return device_data_change_2
 
 
-# Аутентификация в API
-def auth_api():
-    """Функция для авторизации пользователя и получения JWT токена"""
-    url = f"{cfg.Parser.API.main_url}/token"
-    data = {"username": cfg.Parser.API.user_login, "password": cfg.Parser.API.user_password}
-    response = requests.post(url, json=data)
-    if response.status_code == 200:
-        return response.json().get("access_token")
-    else:
-        print("Ошибка авторизации:", response.text)
-        return False
+# Класс отвечающий за получение данных
+class GetData:
+    def __init__(self):
+        self.api_url = cfg.Parser.API.main_url
+        self.api_username = cfg.Parser.API.user_login
+        self.api_password = cfg.Parser.API.user_password
+        self.api_token = self.auth_api()
+        self.headers = {"Authorization": f"Bearer {self.api_token}"}
 
+    def auth_api(self) -> str | bool:
+        """Функция для авторизации пользователя и получения JWT токена"""
+        url = f"{self.api_url}/token"
+        data = {"username": self.api_username, "password": self.api_password}
+        response = requests.post(url, json=data)
+        if response.status_code == 200:
+            return response.json().get("access_token")
+        else:
+            print("Ошибка авторизации:", response.text)
+            return False
 
-# Получение данных из основной БД путем API-запросов
-def get_data_from_api(query, params, token):
-    json_data = {
-        'query': query,
-        'params': params
-    }
-    main_url = cfg.Parser.API.main_url
-    headers = {"Authorization": f"Bearer {token}"}
+    def get_data_from_api(self, query: str, params: list) -> list:
+        """
+        Получение данных через запрос к API
+        :param query: SQL-запрос передаваемый через HTTP
+        :param params: Параметры запроса
+        :return:
+        """
+        json_data = {
+            'query': query,
+            'params': params
+        }
+        url = f"{self.api_url}/put/command"
+        data = requests.put(url=url, json=json_data, headers=self.headers).json()
+        return data
 
-    url = f"{main_url}/put/command"
-    data = requests.put(url=url, json=json_data, headers=headers).json()
-    return data
-
-
-# Получение новых данных на основе старых записей
-def get_new_data(count=0, sugar=True, insulin=True, device=True):
-    # Получение токена API-сервера
-    api_token = auth_api()
-
-    edit_manager = EditData()
-
-    if sugar:
-        # Получение данных Сахаров
-        old_data = get_data_from_api(
+    def get_sugar_data(self, count: int) -> list:
+        return self.get_data_from_api(
             query=f"SELECT * FROM Sugar ORDER BY id DESC LIMIT {count}",
-            params=[],
-            token=api_token
+            params=[]
         )
 
-        # Изменения данных Сахаров
-        sugar_data = edit_manager.sugars(old_data=old_data)
-    else:
-        sugar_data = None
-
-    if insulin:
-        # Получение данных Инсулина
-        old_data = get_data_from_api(
+    def get_insulin_data(self, count: int) -> list:
+        return self.get_data_from_api(
             query=f"SELECT * FROM Insulin ORDER BY id DESC LIMIT {count}",
-            params=[],
-            token=api_token
+            params=[]
         )
 
-        # Изменения данных Инсулина
-        insulin_data = edit_manager.insulin(old_data=old_data)
-    else:
-        insulin_data = None
-
-    if device:
-        # Получение данных Устройств
-        old_data = get_data_from_api(
-            query=f"SELECT * FROM Device",
-            params=[],
-            token=api_token
+    def get_device_data(self) -> list:
+        return self.get_data_from_api(
+            query="SELECT * FROM Device",
+            params=[]
         )[0]
 
-        # Изменения данных Устройств
-        device_data = edit_manager.device(old_data=old_data)
-    else:
-        device_data = None
 
-    return {
-        "sugar": sugar_data,
-        "insulin": insulin_data,
-        "device": device_data
-    }
+def show_old_and_new_data(old_json_data: dict, new_json_data: dict) -> None:
+    """
+    Функция для вывода сравнительной таблицы старых и новых данных
+    :param old_json_data: JSON строка старых данных
+    :param new_json_data: JSON строка новых данных
+    :return: None
+    """
+
+    print("Сравнительная таблица")
+    if old_json_data['sugar'] is not None:
+        print(f"Таблица 'Sugar':\n"
+              f"\tНачальные данные - {old_json_data['sugar']}\n"
+              f"\tИзмененные данные - {new_json_data['sugar']}")
+
+    if old_json_data['insulin'] is not None:
+        print(f"Таблица 'Insulin':\n"
+              f"\tНачальные данные - {old_json_data['insulin']}\n"
+              f"\tИзмененные данные - {new_json_data['insulin']}")
+
+    if old_json_data['device'] is not None:
+        print(f"Таблица 'Device':\n"
+              f"\tНачальные данные - {old_json_data['device']}\n"
+              f"\tИзмененные данные - {new_json_data['device']}")
+
+    print("\n\n")
 
 
 # Универсальный старт модуля
-def start(count=10, sugar=True, insulin=True, device=True):
+def start(count=40000, sugar=True, insulin=True, device=True, edit_mode=False, save_mode=True, reset_db=True, create_db=True):
+    """
+    Универсальная функция переноса данных в Резервную БД
+    :param count: Кол-во переносимых данных из таблицы sugar и insulin
+    :param sugar: Перенос сахара
+    :param insulin: Переноса инсулина и еды
+    :param device: Перенос устройств
+    :param edit_mode: Изменение данных после получения
+    :param save_mode: Сохранение данных после получения
+    :param reset_db: Сброс БД перед записью новых данных
+    :param create_db: Создание новых таблиц
+    :return: None
+    """
+
+    # Остановка функции при неверных аргументах
     if count <= 0:
         print("Кол-во данных меньше или равно 0")
         return 0
 
-    # Подключение к Резервной Базе Данных
-    reserve_db = MySQL(
-        host=cfg.DatabaseReserve.host,
-        port=cfg.DatabaseReserve.port,
-        user=eval(f"cfg.DatabaseReserve.{cfg.DatabaseReserve.sel_user}.login"),
-        password=eval(f"cfg.DatabaseReserve.{cfg.DatabaseReserve.sel_user}.password"),
-        database=cfg.DatabaseReserve.database,
-        retry_max=cfg.DatabaseReserve.retry_max,
-        retry_delay=cfg.DatabaseReserve.retry_delay,
-        timeout=cfg.DatabaseReserve.timeout,
-        read_timeout=cfg.DatabaseReserve.read_timeout,
-        write_timeout=cfg.DatabaseReserve.write_timeout
+    # Получение изначальных данных
+    data_manager = GetData() if sugar or insulin or device else None
+    sugar_data = data_manager.get_sugar_data(count=count) if sugar else None
+    insulin_data = data_manager.get_insulin_data(count=count) if insulin else None
+    device_data = data_manager.get_device_data() if device else None
+
+    # Изменение данных под новые стандарты
+    edit_manager = EditData() if edit_mode else None
+    new_sugar_data = edit_manager.sugars(old_data=sugar_data) if sugar and edit_mode else None
+    new_insulin_data = edit_manager.insulin(old_data=insulin_data) if insulin and edit_mode else None
+    new_device_data = edit_manager.device(old_data=device_data) if device and edit_mode else None
+
+    # Вывод сравнительных данных
+    show_old_and_new_data(
+        old_json_data={
+            "sugar": sugar_data,
+            "insulin": insulin_data,
+            "device": device_data
+        },
+        new_json_data={
+            "sugar": new_sugar_data,
+            "insulin": new_insulin_data,
+            "device": new_device_data
+        }
     )
 
-    # Получение данных из БД + выравнивание данных
-    new_data = get_new_data(
-        count=count,
-        sugar=sugar,
-        insulin=insulin,
-        device=device
+    # Подключение к Резервной БД (MySQL)
+    reserve_db = ReserveDB(
+        host=cfg.Reserve.Database.host,
+        port=cfg.Reserve.Database.port,
+        user=eval(f"cfg.Reserve.Database.{cfg.Reserve.Database.sel_user}.login"),
+        password=eval(f"cfg.Reserve.Database.{cfg.Reserve.Database.sel_user}.password"),
+        database=cfg.Reserve.Database.database,
+        retry_max=cfg.Reserve.Database.retry_max,
+        retry_delay=cfg.Reserve.Database.retry_delay,
+        timeout=cfg.Reserve.Database.timeout,
+        read_timeout=cfg.Reserve.Database.read_timeout,
+        write_timeout=cfg.Reserve.Database.write_timeout
     )
 
-    permission = input(f"\n\nСогласны выполнить запись новых данных в резервную БД ?\n"
-                       f"\tIP - {cfg.DatabaseReserve.host}:{cfg.DatabaseReserve.port}\n"
-                       f"\tUser - {eval(f"cfg.DatabaseReserve.{cfg.DatabaseReserve.sel_user}.login")}\n"
-                       f"Кол-во новых данных для записи:\n"
-                       f"\tСахаров - {len(new_data['sugar'])}\n"
-                       f"\tИнсулина - {len(new_data['insulin'])}\n"
-                       f"\tУстройств - 1\n\n"
-                       f"Записать данные? (YES / NO) - ").upper()
-    if permission == "NO" or permission == "N":
-        print("Отказ от записи данных в резервную БД")
-    elif permission == "YES" or permission == "Y":
-        print("Начата запись новых объектов в БД")
-    else:
-        print("Некорректный ввод")
+    # Проверка на согласие удалять таблицы
+    test = str(input("Хотите начать процесс сброса таблиц? (YES/NO) - ")).upper()
+    if test == "YES" or test == "Y":
+        # Удаление таблиц
+        reserve_db.reset_tables(
+            sugar=sugar,
+            insulin=insulin,
+            device=device
+        ) if reset_db else None
+
+        # Создание новых таблиц
+        reserve_db.create_table(
+            sugar=sugar,
+            insulin=insulin,
+            device=device
+        ) if create_db else None
+
+    # Процесс записи данных
+    if save_mode:
+        # Первичный запрос для записи данных в резервную БД
+        test = str(input("Хотите начать процесс записи данных? (YES/NO) - ")).upper()
+
+        # Проверка первичного запроса
+        if test == "NO" or test == "N":
+            print("\t" + "Запись данных в Резервную БД - ОТМЕНЕНА")
+            return
+        elif test == "YES" or test == "Y":
+            print("")
+        else:
+            print("\t" + "Некорректный ввод")
+            print("\t" + "Запись данных в Резервную БД - ОТМЕНЕНА")
+            return
+
+        # Запись данных сахара
+        if sugar:
+            # Получение финальных данных
+            sugar_write = new_sugar_data if edit_mode else sugar_data
+
+            # Финальный вопрос перед записью данных
+            final_test = str(input("Записать данные сахаров в Резервную БД? (YES/NO) - ")).upper()
+            if final_test == "YES" or final_test == "Y":
+                for item in reversed(sugar_write):  # Перебор элементов в списке
+                    reserve_db.add_sugar(item)  # Запись данных в Резервную БД
+                print("\t" + "Запись сахаров - УСПЕШНА", end="\n\n")
+            else:
+                print("\t" + "Записать сахаров - ОТМЕНЕНА", end="\n\n")
+
+        # Запись данных инсулина
+        if insulin:
+            # Получение финальных данных
+            insulin_write = new_insulin_data if edit_mode else insulin_data
+
+            # Финальный вопрос перед записью данных
+            final_test = str(input("Записать данные инсулина в Резервную БД? (YES/NO) - ")).upper()
+            if final_test == "YES" or final_test == "Y":
+                for item in reversed(insulin_write):  # Перебор элементов в списке
+                    reserve_db.add_insulin(item)  # Запись данных в Резервную БД
+                print("\t" + "Запись инсулина - УСПЕШНА", end="\n\n")
+            else:
+                print("\t" + "Запись инсулина - ОТМЕНЕНА", end="\n\n")
+
+        # Запись данных устройств
+        if device:
+            # Получение финальных данных
+            device_write = new_device_data if edit_mode else device_data
+
+            # Финальный вопрос перед записью данных
+            final_test = str(input("Записать данные устройств в Резервную БД? (YES/NO) - ")).upper()
+            if final_test == "YES" or final_test == "Y":
+                reserve_db.add_device(device_write)  # Запись данных в Резервную БД
+                print("\t" + "Запись устройств - УСПЕШНА", end="\n\n")
+            else:
+                print("\t" + "Запись устройств - ОТМЕНЕНА", end="\n\n")
